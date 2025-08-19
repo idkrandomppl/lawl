@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Discord Webhook Utility — Advanced</title>
+<style>
+  :root{--bg:#0f1724;--card:#0b1220;--muted:#94a3b8;--accent:#7c3aed;--success:#16a34a;--danger:#ef4444}
+  body{margin:0;font-family:Inter,system-ui,sans-serif;background:var(--bg);color:#e6eef6;display:flex;justify-content:center;padding:20px}
+  .wrap{max-width:1100px;width:100%}
+  header{margin-bottom:14px}
+  h1{font-size:20px;margin:0}
+  .tabs{display:flex;gap:6px;margin-bottom:12px}
+  .tab{flex:1;padding:8px;border-radius:8px;text-align:center;cursor:pointer;background:rgba(255,255,255,0.05);color:var(--muted);user-select:none}
+  .tab.active{background:linear-gradient(90deg,var(--accent),#5b21b6);color:white}
+  .tabcontent{display:none}
+  .tabcontent.active{display:block}
+  .card{background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));border:1px solid rgba(255,255,255,0.05);border-radius:10px;padding:12px;margin-bottom:12px}
+  label{font-size:13px;color:var(--muted);display:block;margin-bottom:4px}
+  input,textarea{width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.08);background:transparent;color:inherit;font-size:14px}
+  textarea{resize:vertical;min-height:80px}
+  .btn{padding:7px 12px;border-radius:7px;cursor:pointer;border:none;font-weight:600}
+  .btn-primary{background:linear-gradient(90deg,var(--accent),#5b21b6);color:white}
+  .btn-danger{background:var(--danger);color:white}
+  .btn-ghost{background:transparent;border:1px solid rgba(255,255,255,0.1);color:var(--muted)}
+  pre{background:#041022;padding:10px;border-radius:8px;font-size:13px;overflow:auto}
+  .row{display:flex;gap:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><h1>Discord Webhook Utility — Advanced</h1></header>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="message">Message</div>
+    <div class="tab" data-tab="embeds">Embeds</div>
+    <div class="tab" data-tab="utils">Utilities</div>
+    <div class="tab" data-tab="saved">Saved</div>
+  </div>
+
+  <!-- Message Tab -->
+  <div class="tabcontent active" id="message">
+    <div class="card">
+      <label>Webhook URL</label>
+      <input id="webhook" type="url" placeholder="https://discord.com/api/webhooks/...">
+    </div>
+    <div class="card">
+      <div class="row">
+        <div style="flex:1">
+          <label>Username (override)</label>
+          <input id="username" type="text">
+        </div>
+        <div style="flex:1">
+          <label>Avatar URL</label>
+          <input id="avatar" type="url">
+        </div>
+      </div>
+      <label>Message content</label>
+      <textarea id="content" placeholder="Hello world"></textarea>
+      <div class="row" style="margin-top:6px">
+        <button class="btn-ghost" id="insertEveryone">@everyone</button>
+        <button class="btn-ghost" id="insertHere">@here</button>
+        <input id="roleId" placeholder="Role ID">
+        <button class="btn-ghost" id="insertRole">Insert role mention</button>
+      </div>
+      <div style="margin-top:10px">
+        <button class="btn-primary" id="send">Send Message</button>
+      </div>
+      <pre id="response">No request sent.</pre>
+    </div>
+  </div>
+
+  <!-- Embeds Tab -->
+  <div class="tabcontent" id="embeds">
+    <div class="card">
+      <label>Embed JSON</label>
+      <textarea id="embed" placeholder='[{"title":"My Title","description":"desc"}]'></textarea>
+      <div class="row" style="margin-top:8px">
+        <button class="btn-ghost" id="formatEmbed">Format</button>
+        <button class="btn-ghost" id="validateEmbed">Validate</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Utilities Tab -->
+  <div class="tabcontent" id="utils">
+    <div class="card">
+      <button class="btn-ghost" id="getInfo">Get Webhook Info</button>
+      <button class="btn-danger" id="deleteWebhook">Delete Webhook</button>
+      <pre id="utilsResponse">No actions yet.</pre>
+    </div>
+  </div>
+
+  <!-- Saved Tab -->
+  <div class="tabcontent" id="saved">
+    <div class="card">
+      <button class="btn-ghost" id="saveWebhook">Save current</button>
+      <button class="btn-ghost" id="clearSaved">Clear all</button>
+      <div id="savedList">None saved.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const tabs=document.querySelectorAll('.tab');
+const tabcontents=document.querySelectorAll('.tabcontent');
+tabs.forEach(t=>t.addEventListener('click',()=>{
+  tabs.forEach(x=>x.classList.remove('active'));
+  tabcontents.forEach(c=>c.classList.remove('active'));
+  t.classList.add('active');
+  document.getElementById(t.dataset.tab).classList.add('active');
+}));
+
+function jsonTry(text){try{return[JSON.parse(text),null]}catch(e){return[null,e]}}
+const webhookEl=document.getElementById('webhook');
+const usernameEl=document.getElementById('username');
+const avatarEl=document.getElementById('avatar');
+const contentEl=document.getElementById('content');
+const embedEl=document.getElementById('embed');
+const responsePre=document.getElementById('response');
+const utilsPre=document.getElementById('utilsResponse');
+
+// Send
+document.getElementById('send').onclick=async()=>{
+  const url=webhookEl.value.trim(); if(!url)return alert("Webhook URL missing");
+  const payload={};
+  if(contentEl.value)payload.content=contentEl.value;
+  if(usernameEl.value)payload.username=usernameEl.value;
+  if(avatarEl.value)payload.avatar_url=avatarEl.value;
+  if(embedEl.value){let [parsed,e]=jsonTry(embedEl.value);if(e)return alert("Bad embed JSON");payload.embeds=Array.isArray(parsed)?parsed:[parsed]}
+  try{const res=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+    responsePre.textContent="HTTP "+res.status+" "+res.statusText+"\\n"+await res.text()
+  }catch(e){responsePre.textContent="Error: "+e.message}
+};
+
+// Mentions
+document.getElementById('insertEveryone').onclick=()=>contentEl.value+=" @everyone";
+document.getElementById('insertHere').onclick=()=>contentEl.value+=" @here";
+document.getElementById('insertRole').onclick=()=>{
+  const id=document.getElementById('roleId').value.trim();
+  if(id)contentEl.value+=" <@&"+id+">";
+};
+
+// Embed tools
+document.getElementById('formatEmbed').onclick=()=>{
+  let [parsed,e]=jsonTry(embedEl.value);if(e)return alert("Invalid JSON");embedEl.value=JSON.stringify(parsed,null,2);
+};
+document.getElementById('validateEmbed').onclick=()=>{
+  let [parsed,e]=jsonTry(embedEl.value);if(e)return alert("Invalid JSON: "+e.message);
+  alert("Looks valid.");
+};
+
+// Utilities
+document.getElementById('getInfo').onclick=async()=>{
+  const url=webhookEl.value.trim(); if(!url)return;
+  try{const res=await fetch(url);utilsPre.textContent=await res.text()}catch(e){utilsPre.textContent="Error: "+e.message}
+};
+document.getElementById('deleteWebhook').onclick=async()=>{
+  const url=webhookEl.value.trim(); if(!url)return;
+  if(!confirm("Delete this webhook?"))return;
+  try{const res=await fetch(url,{method:"DELETE"});utilsPre.textContent="HTTP "+res.status+" "+res.statusText}catch(e){utilsPre.textContent="Error: "+e.message}
+};
+
+// Saved
+const STORAGE_KEY="saved_hooks";
+function renderSaved(){
+  const arr=JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]");
+  if(!arr.length)return document.getElementById('savedList').textContent="None saved.";
+  document.getElementById('savedList').innerHTML="";
+  arr.forEach(s=>{
+    const d=document.createElement('div');d.textContent=s;
+    d.style.marginBottom="6px";d.style.cursor="pointer";d.onclick=()=>webhookEl.value=s;
+    document.getElementById('savedList').appendChild(d);
+  });
+}
+document.getElementById('saveWebhook').onclick=()=>{
+  const url=webhookEl.value.trim();if(!url)return;
+  let arr=JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]");
+  if(!arr.includes(url))arr.push(url);
+  localStorage.setItem(STORAGE_KEY,JSON.stringify(arr));renderSaved();
+};
+document.getElementById('clearSaved').onclick=()=>{localStorage.removeItem(STORAGE_KEY);renderSaved()};
+renderSaved();
+</script>
+</body>
+</html>
